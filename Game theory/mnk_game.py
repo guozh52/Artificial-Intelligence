@@ -1,4 +1,5 @@
 from pickle import FALSE
+
 import random
 
 import numpy as np
@@ -114,8 +115,50 @@ def select(tree: "Tree", state: npt.ArrayLike, k: int, alpha: float):
     """
 
     # TODO:
-    return state
 
+    while True:
+        if utility(state, k) != None:
+            # Reached a terminal
+
+            return state
+
+        # Get cureent state(parent) node
+        current_node = tree.get(state) 
+        # Get all the children of current node
+        children = successors(current_node.state, current_node.player) 
+    
+        for each_ in children:
+            if tree.get(each_) == None:
+                # Found a unexpanded child
+                return state
+
+        # If all the children is in the tree,
+        # then calculate each child's UCT value, move to the one with the highest UCT value.
+        best_score = 0.0
+        best_child = state
+    
+        for each_ in children:
+            # If child's already in the tree but with a parent node different from the current node, ignore it
+            parent_state = tree.get(each_).parent
+            if parent_state.tobytes() != current_node.state.tobytes():
+                continue
+
+            child = tree.get(each_)
+            exploit_value = float(child.w) / float(child.N)
+            explore_value = alpha * np.sqrt(np.log(current_node.N) / float(child.N))
+
+            UCT_value = exploit_value + explore_value
+        
+            if UCT_value > best_score:
+                best_child = each_
+                best_score = UCT_value
+
+        if state.tobytes() == best_child.tobytes():
+            print(state)
+            return state
+            
+        state = best_child
+    
 
 def expand(tree: "Tree", state: npt.ArrayLike, k: int):
     """Add a child node of state into the tree if it's not terminal and return
@@ -130,8 +173,28 @@ def expand(tree: "Tree", state: npt.ArrayLike, k: int):
     """
 
     # TODO:
-    return tree, state
 
+    if utility(state, k) != None:
+        # Reached a terminal
+
+        return tree, state
+
+    else:
+        # It's not a terminal, add a child node of state into the tree
+        # Get all the children of current node
+        children = successors(state, tree.get(state).player) 
+        for each_ in children:
+            if tree.get(each_) == None:
+                if tree.get(state).player == 'X':
+                    next_player = 'O'
+                else:
+                    next_player = 'X'
+                new_state = each_
+                tree.add(Node(new_state, state, next_player, 0, 1))
+                return tree, new_state
+
+        return tree, state
+        
 
 def simulate(state: npt.ArrayLike, player: str, k: int):
     """Run one game rollout from state to a terminal state using random
@@ -146,7 +209,13 @@ def simulate(state: npt.ArrayLike, player: str, k: int):
     """
 
     # TODO:
-    return 0
+    while utility(state, k) is None:
+
+        state = random.choice(successors(state, player))
+
+        player = "O" if player == "X" else "X"
+
+    return utility(state, k)
 
 
 def backprop(tree: "Tree", state: npt.ArrayLike, result: float):
@@ -165,6 +234,30 @@ def backprop(tree: "Tree", state: npt.ArrayLike, result: float):
     """
 
     # TODO:
+    
+    if result == 1:
+        # 'O' win
+        while tree.get(state).parent is not None:
+            tree.get(state).N += 1
+            if tree.get(state).player == 'O':
+                tree.get(state).w += 1
+            state = tree.get(state).parent
+
+    elif result == -1:
+        # 'X' win
+        while tree.get(state).parent is not None:
+            tree.get(state).N += 1
+            if tree.get(state).player == 'X':
+                tree.get(state).w += 1
+            state = tree.get(state).parent
+
+    else:
+        # Draw
+        while tree.get(state).parent is not None:
+            tree.get(state).N += 1
+            tree.get(state).w += 0.5
+            state = tree.get(state).parent
+
     return tree
 
 
@@ -191,7 +284,7 @@ def MCTS(state: npt.ArrayLike, player: str, k: int, rollouts: int, alpha: float)
         if tree.get(s).N > plays:
             plays = tree.get(s).N
             nxt = s
-
+    
     return nxt
 
 
